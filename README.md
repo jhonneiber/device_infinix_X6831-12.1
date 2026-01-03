@@ -1,8 +1,8 @@
-# Android device tree for Infinix Hot 30 (X6831)
+# OrangeFox for Infinix Hot 30 (X6831)
 
 Blocking checks
 - [x] Correct screen/recovery size
-- [x] Working Touch ~~(sometimes working, TWRP specific bug, not present in OFRP/PBRP)~~
+- [x] Working Touch, screen
 - [x] Backup to internal/microSD
 - [x] Restore from internal/microSD
 - [x] reboot to system
@@ -23,7 +23,7 @@ Minor checks
 - [x] MTP export
 - [x] reboot to bootloader
 - [x] reboot to recovery
-- [x] reboot to fastbootd (fixed)
+- [x] reboot to fastboot
 - [x] poweroff
 - [x] battery level
 - [x] temperature
