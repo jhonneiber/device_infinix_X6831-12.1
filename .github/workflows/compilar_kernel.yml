@@ -1,0 +1,84 @@
+name: Kernel Build - Infinix X6831 KSU
+
+on:
+  workflow_dispatch:
+    inputs:
+      KERNEL_SOURCE:
+        description: 'URL del código fuente del Kernel (Usaremos Xiaomi MT6768 como base)'
+        required: true
+        default: 'https://github.com/MiCode/Xiaomi_Kernel_OpenSource'
+      KERNEL_BRANCH:
+        description: 'Rama del Kernel'
+        required: true
+        default: 'selene-r-oss'
+      KERNEL_CONFIG:
+        description: 'Nombre del archivo de configuración (Tu config_real.txt)'
+        required: true
+        default: 'x6831_defconfig'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+    - name: Check Out (Para leer tu config_real.txt)
+      uses: actions/checkout@v4
+
+    - name: Cleanup & Space
+      uses: rokibhasansagar/slimhub_actions@main
+
+    - name: Prepare Build Environment
+      run: |
+        sudo apt update
+        sudo apt install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libncurses5-dev flex bison
+
+    - name: Install Toolchain (Clang 11 - Basado en tu config_real)
+      run: |
+        mkdir clang
+        cd clang
+        wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-11.0.0_r1/clang-r383902.tar.gz
+        tar -xf clang-r383902.tar.gz
+        echo "$(pwd)/bin" >> $GITHUB_PATH
+
+    - name: Clone Kernel Source
+      run: |
+        git clone --depth=1 ${{ github.event.inputs.KERNEL_SOURCE }} -b ${{ github.event.inputs.KERNEL_BRANCH }} workspace/kernel
+
+    - name: Integrated KernelSU
+      run: |
+        cd workspace/kernel
+        curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
+
+    - name: Apply Infinix Config
+      run: |
+        # Copiamos tu archivo config_real.txt que está en el repo al código del kernel
+        cp config_real.txt workspace/kernel/arch/arm64/configs/vendor/${{ github.event.inputs.KERNEL_CONFIG }}
+        # Aseguramos que KSU esté activado en la config
+        echo "CONFIG_KSU=y" >> workspace/kernel/arch/arm64/configs/vendor/${{ github.event.inputs.KERNEL_CONFIG }}
+
+    - name: Build Kernel
+      run: |
+        cd workspace/kernel
+        export ARCH=arm64
+        export CC=clang
+        export CLANG_TRIPLE=aarch64-linux-gnu-
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+        
+        make O=out vendor/${{ github.event.inputs.KERNEL_CONFIG }}
+        make -j$(nproc --all) O=out
+
+    - name: Upload Kernel to Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          workspace/kernel/out/arch/arm64/boot/Image.gz-dtb
+        name: Kernel-KSU-X6831-${{ github.run_id }}
+        tag_name: KSU-${{ github.run_id }}
+        body: |
+          KernelSU integrado en Kernel 4.19.191
+          Base: ${{ github.event.inputs.KERNEL_BRANCH }}
+          Device: Infinix Hot 30 (X6831)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
